@@ -1,6 +1,52 @@
 'use strict';
 
 /* ============================================================
+   SOUND MANAGER
+   音声ファイルを一元管理。音量変更・ミュートは VOLUME 定数で制御。
+   連続再生対応のため currentTime = 0 でリセットしてから play()。
+   ============================================================ */
+const SoundManager = (() => {
+  // ── 音量設定（0.0 〜 1.0）─────────────────────────────────
+  const VOLUME = {
+    select : 0.5,
+    place  : 0.55,
+    win    : 0.7,
+  };
+
+  // ── Audio インスタンスを生成・プリロード ───────────────────
+  function _load(path, volume) {
+    const audio = new Audio(path);
+    audio.preload = 'auto';
+    audio.volume  = volume;
+    return audio;
+  }
+
+  const _sounds = {
+    select : _load('sounds/select.mp3', VOLUME.select),
+    place  : _load('sounds/place.mp3',  VOLUME.place),
+    win    : _load('sounds/win.mp3',    VOLUME.win),
+  };
+
+  // ── 再生（連続タップでも最初から鳴らす）──────────────────
+  function play(name) {
+    const audio = _sounds[name];
+    if (!audio) return;
+    audio.currentTime = 0;
+    audio.play().catch(() => {}); // autoplay policy エラーを無視
+  }
+
+  // ── 音量一括変更 API ──────────────────────────────────────
+  function setVolume(name, vol) {
+    if (_sounds[name]) _sounds[name].volume = Math.min(1, Math.max(0, vol));
+  }
+  function setAllVolumes(vol) {
+    Object.keys(_sounds).forEach(k => setVolume(k, vol));
+  }
+
+  return { play, setVolume, setAllVolumes };
+})();
+
+/* ============================================================
    SKILL CROSS — Game Logic
    ============================================================ */
 
@@ -673,7 +719,7 @@ function aiDecideSkill(){
 /* ============================================================
    CORE GAME FLOW
    ============================================================ */
-function placePiece(i){ if(isCellLocked(i))return false; state.board[i]=state.currentPlayer; state.pieceAge[i]=state.turn; return true; }
+function placePiece(i){ if(isCellLocked(i))return false; state.board[i]=state.currentPlayer; state.pieceAge[i]=state.turn; SoundManager.play('place'); return true; }
 
 function nextTurn(){
   state.turn++; expireEffects();
@@ -691,6 +737,7 @@ function checkGameEnd(){
   const result=checkWin(state.board);
   if(result){
     state.gameOver=true; state.winner=result.winner; state.winCells=result.cells; state.score[result.winner]++;
+    SoundManager.play('win');
     renderAll();
     setTimeout(()=>BattleMode.onGameEnd(state.winner), 450);
     return true;
@@ -1035,7 +1082,7 @@ function playerName(p){ return state.mode==='ai'?(p===P1?'あなた':'AI'):(p===
    ============================================================ */
 const _sc={};
 function getScreen(id){ if(!_sc[id])_sc[id]=document.getElementById(id); return _sc[id]; }
-function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); getScreen(id).classList.add('active'); }
+function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); getScreen(id).classList.add('active'); SoundManager.play('select'); }
 
 /* ============================================================
    SKILL GRID BUILDER (shared)
