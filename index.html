@@ -8,7 +8,7 @@
 </head>
 <body>
 
-<!-- ===== SCREENS ===== -->
+<!-- ===================== SCREENS ===================== -->
 
 <!-- TITLE -->
 <div id="screen-title" class="screen active">
@@ -21,14 +21,14 @@
     <p class="title-sub">スキル付きマルバツゲーム</p>
     <div class="title-menu">
       <button class="btn-menu" id="btn-local">ローカル対戦</button>
-      <button class="btn-menu btn-disabled" id="btn-online">オンライン対戦 <span class="badge-soon">近日公開</span></button>
+      <button class="btn-menu btn-disabled">オンライン対戦 <span class="badge-soon">近日公開</span></button>
       <button class="btn-menu btn-secondary" id="btn-skill-edit">スキル編集</button>
       <button class="btn-menu btn-secondary" id="btn-howto">遊び方</button>
     </div>
   </div>
 </div>
 
-<!-- LOCAL MODE SELECT -->
+<!-- LOCAL SELECT: 対人 or AI -->
 <div id="screen-local-select" class="screen">
   <div class="screen-header">
     <button class="btn-back" id="back-from-local">← 戻る</button>
@@ -44,6 +44,40 @@
       <div class="mode-icon">🤖</div>
       <div class="mode-title">AI戦</div>
       <div class="mode-desc">AIと対戦する</div>
+    </div>
+  </div>
+</div>
+
+<!-- BATTLE MODE SELECT (対人戦のみ) -->
+<div id="screen-battle-mode" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" id="back-from-battle-mode">← 戻る</button>
+    <h2>対戦モードを選択</h2>
+  </div>
+  <div class="battle-mode-cards">
+    <div class="battle-mode-card" data-battle-mode="simple">
+      <div class="bm-header">
+        <span class="bm-icon">⚡</span>
+        <span class="bm-label">SIMPLE</span>
+      </div>
+      <div class="bm-title">シンプル</div>
+      <div class="bm-desc">各自スキル3つを持ち込み、<br>1試合で勝負する</div>
+    </div>
+    <div class="battle-mode-card" data-battle-mode="draft">
+      <div class="bm-header">
+        <span class="bm-icon">🎴</span>
+        <span class="bm-label">DRAFT</span>
+      </div>
+      <div class="bm-title">ドラフト</div>
+      <div class="bm-desc">交互にスキルを奪い合い、<br>戦略的に3つを選ぶ</div>
+    </div>
+    <div class="battle-mode-card" data-battle-mode="stock">
+      <div class="bm-header">
+        <span class="bm-icon">🏆</span>
+        <span class="bm-label">STOCK</span>
+      </div>
+      <div class="bm-title">ストック</div>
+      <div class="bm-desc">先に3勝した方の勝利。<br>負けたらスキルを再選択</div>
     </div>
   </div>
 </div>
@@ -71,18 +105,46 @@
       <div class="difficulty-title">つよい</div>
       <div class="difficulty-desc">盤面を深く読み<br>スキルも駆使する</div>
     </div>
+    <div class="difficulty-card difficulty-card--max" data-difficulty="max">
+      <div class="difficulty-icon">👁</div>
+      <div class="difficulty-title">最強</div>
+      <div class="difficulty-desc">全力で読む<br>勝てる気がしない</div>
+    </div>
   </div>
 </div>
 
-<!-- SKILL SELECT (PRE-GAME) -->
+<!-- SKILL SELECT (通常・ストック再選択) -->
 <div id="screen-skill-select" class="screen">
   <div class="screen-header">
     <button class="btn-back" id="back-from-skill-select">← 戻る</button>
     <h2 id="skill-select-title">スキルを3つ選択</h2>
   </div>
-  <p class="skill-select-hint">5つのスキルから3つを選んでください</p>
+  <p class="skill-select-hint" id="skill-select-hint">6つのスキルから3つを選んでください</p>
   <div id="skill-select-grid" class="skill-select-grid"></div>
   <button class="btn-primary" id="btn-confirm-skills" disabled>決定</button>
+</div>
+
+<!-- DRAFT SCREEN -->
+<div id="screen-draft" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" id="back-from-draft">← 戻る</button>
+    <h2>ドラフト</h2>
+  </div>
+  <div class="draft-status" id="draft-status">
+    <span id="draft-turn-label">P1 がスキルを選択中</span>
+    <span class="draft-count" id="draft-count">残り 6</span>
+  </div>
+  <div class="draft-picks-row">
+    <div class="draft-player-picks" id="draft-picks-p1">
+      <div class="draft-player-label p1-label">P1</div>
+      <div class="draft-slots" id="draft-slots-p1"></div>
+    </div>
+    <div class="draft-player-picks" id="draft-picks-p2">
+      <div class="draft-player-label p2-label">P2</div>
+      <div class="draft-slots" id="draft-slots-p2"></div>
+    </div>
+  </div>
+  <div id="draft-skill-grid" class="skill-select-grid draft-skill-grid"></div>
 </div>
 
 <!-- SKILL EDIT (FROM TITLE) -->
@@ -115,20 +177,29 @@
     <section class="howto-section">
       <h3>⚡ スキルシステム</h3>
       <ul>
-        <li>試合前に5つのスキルから3つを選択</li>
+        <li>試合前に6つのスキルから3つを選択</li>
         <li>各スキルは1試合に1回のみ使用可能</li>
         <li>相手のスキルは試合開始時に公開される</li>
         <li>使用済みスキルは暗く表示される</li>
       </ul>
     </section>
     <section class="howto-section">
+      <h3>🗂 対戦モード</h3>
+      <ul>
+        <li><strong>シンプル</strong> — 各自スキル3つを持ち込み、1試合勝負</li>
+        <li><strong>ドラフト</strong> — 交互にスキルを取り合い、構成の読み合いを楽しむ</li>
+        <li><strong>ストック</strong> — 先に3勝で勝利。敗者のみスキルを再選択できる</li>
+      </ul>
+    </section>
+    <section class="howto-section">
       <h3>📖 スキル一覧</h3>
       <div class="howto-skills">
         <div class="howto-skill"><span class="skill-icon-sm">⚡</span><strong>ダブル</strong> — 1ターンに2回駒を置く（同じ列は不可）</div>
-        <div class="howto-skill"><span class="skill-icon-sm">🗑</span><strong>デリート</strong> — 相手の駒を1つ削除した後、続けて自分の駒を1つ置ける</div>
+        <div class="howto-skill"><span class="skill-icon-sm">🗑</span><strong>デリート</strong> — 相手の駒を1つ削除した後、続けて駒を1つ置ける</div>
         <div class="howto-skill"><span class="skill-icon-sm">🔄</span><strong>スイッチ</strong> — 自分の駒1つと相手の駒1つを入れ替え</div>
-        <div class="howto-skill"><span class="skill-icon-sm">🚀</span><strong>ムーブ</strong> — 自分の駒を選ぶと好きな空きマスへ移動。相手の駒を選ぶと消滅させる</div>
-        <div class="howto-skill"><span class="skill-icon-sm">🔒</span><strong>ロック</strong> — 追加効果として発動。相手の次ターンのスキルを封じ、続けて駒を1つ置ける</div>
+        <div class="howto-skill"><span class="skill-icon-sm">🔒</span><strong>ロック</strong> — 相手の次ターンのスキルを封じ、続けて駒を1つ置ける</div>
+        <div class="howto-skill"><span class="skill-icon-sm">🛡</span><strong>ガード</strong> — 自分の駒をガード。デリート・スイッチを1回無効化（2ターン）。その後駒を置ける</div>
+        <div class="howto-skill"><span class="skill-icon-sm">⛓</span><strong>マスロック</strong> — 任意の1マスを2ターン封鎖。その後駒を1つ置ける</div>
       </div>
     </section>
   </div>
@@ -141,24 +212,23 @@
     <div class="turn-indicator" id="turn-indicator">
       <span id="turn-label">— のターン</span>
     </div>
-    <div class="game-score" id="game-score"></div>
+    <div class="game-header-right">
+      <div class="mode-badge" id="mode-badge"></div>
+      <div class="game-score" id="game-score"></div>
+    </div>
   </div>
 
   <div class="game-area">
-    <!-- Player 1 panel -->
     <div class="player-panel" id="panel-p1">
       <div class="panel-name" id="p1-name">P1</div>
       <div class="panel-skills" id="p1-skills"></div>
       <div class="lock-badge" id="lock-p1">🔒 ロック中</div>
     </div>
 
-    <!-- Board -->
     <div class="board-container">
       <div id="board" class="board"></div>
-      <div id="skill-prompt" class="skill-prompt hidden"></div>
     </div>
 
-    <!-- Player 2 panel -->
     <div class="player-panel" id="panel-p2">
       <div class="panel-name" id="p2-name">P2</div>
       <div class="panel-skills" id="p2-skills"></div>
@@ -166,22 +236,32 @@
     </div>
   </div>
 
-  <!-- Active skill status bar -->
   <div id="skill-status-bar" class="skill-status-bar hidden">
     <span id="skill-status-text"></span>
     <button id="btn-cancel-skill" class="btn-cancel-skill">キャンセル</button>
   </div>
 </div>
 
-<!-- RESULT OVERLAY -->
+<!-- RESULT OVERLAY (通常 / シンプル / ドラフト) -->
 <div id="overlay-result" class="overlay hidden">
   <div class="result-box">
     <div class="result-icon" id="result-icon"></div>
     <div class="result-title" id="result-title"></div>
     <div class="result-sub" id="result-sub"></div>
+    <div class="result-actions" id="result-actions"></div>
+  </div>
+</div>
+
+<!-- STOCK SERIES WIN OVERLAY -->
+<div id="overlay-series-win" class="overlay hidden">
+  <div class="series-win-box">
+    <div class="series-win-icon" id="series-win-icon">🏆</div>
+    <div class="series-win-title" id="series-win-title"></div>
+    <div class="series-stars" id="series-stars"></div>
+    <div class="series-win-sub">シリーズ終了</div>
     <div class="result-actions">
-      <button class="btn-primary" id="btn-rematch">リマッチ</button>
-      <button class="btn-secondary-sm" id="btn-to-title">タイトルへ</button>
+      <button class="btn-primary" id="btn-series-again">もう一度</button>
+      <button class="btn-secondary-sm" id="btn-series-title">タイトルへ</button>
     </div>
   </div>
 </div>
@@ -194,9 +274,7 @@
 <!-- AI THINKING OVERLAY -->
 <div id="overlay-ai-thinking" class="overlay-ai-thinking hidden">
   <div class="ai-thinking-inner">
-    <div class="ai-thinking-dots">
-      <span></span><span></span><span></span>
-    </div>
+    <div class="ai-thinking-dots"><span></span><span></span><span></span></div>
     <div class="ai-thinking-label">AI THINKING...</div>
   </div>
 </div>
