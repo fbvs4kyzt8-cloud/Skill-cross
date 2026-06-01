@@ -47,6 +47,162 @@ const SoundManager = (() => {
 })();
 
 /* ============================================================
+   REPLAY MANAGER
+   各ターンの盤面・行動を記録し、試合後に再生する。
+   タイトルへ戻った時点でデータをクリアする。
+   ============================================================ */
+const ReplayManager = (() => {
+  let _log = [];   // { turn, player, board, action, skillUsed }
+
+  function reset() { _log = []; }
+
+  // ゲーム開始時にリセット
+  function onGameStart() { reset(); }
+
+  // 各ターン終了時に記録
+  function record({ turn, player, board, skillUsed, action }) {
+    _log.push({
+      turn,
+      player,
+      board: [...board],
+      skillUsed: skillUsed || null,
+      action: action || '駒を置く',
+    });
+  }
+
+  function hasData() { return _log.length > 0; }
+  function getLog()  { return _log; }
+
+  return { reset, onGameStart, record, hasData, getLog };
+})();
+
+/* ============================================================
+   REPLAY UI
+   ============================================================ */
+const ReplayUI = (() => {
+  let _cursor = 0;
+
+  function open() {
+    const log = ReplayManager.getLog();
+    if (!log.length) { return; }
+    _cursor = 0;
+    _buildReplayBoard();
+    _render();
+    showScreen('screen-replay');
+  }
+
+  function _buildReplayBoard() {
+    const board = document.getElementById('replay-board');
+    board.innerHTML = '';
+    for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
+      const c = document.createElement('div');
+      c.className = 'cell';
+      board.appendChild(c);
+    }
+  }
+
+  function _render() {
+    const log    = ReplayManager.getLog();
+    const entry  = log[_cursor];
+    const total  = log.length;
+
+    // Progress
+    document.getElementById('replay-progress').textContent = `${_cursor + 1} / ${total}`;
+
+    // Turn badge
+    document.getElementById('replay-turn-badge').textContent = `TURN ${entry.turn}`;
+
+    // Player badge
+    const pb = document.getElementById('replay-player-badge');
+    const pName = entry.player === P1 ? 'P1' : 'P2';
+    pb.textContent = pName;
+    pb.className = `replay-player-badge ${entry.player === P1 ? 'p1' : 'p2'}`;
+
+    // Action text
+    const skillTxt = entry.skillUsed ? `${SKILL_DEFS[entry.skillUsed]?.icon || ''} ${SKILL_DEFS[entry.skillUsed]?.name || entry.skillUsed} 使用 — ` : '';
+    document.getElementById('replay-action').textContent = skillTxt + entry.action;
+
+    // Board
+    const cells = document.getElementById('replay-board').querySelectorAll('.cell');
+    cells.forEach((cell, i) => {
+      cell.className = 'cell';
+      cell.innerHTML = '';
+      const v = entry.board[i];
+      if (v !== EMPTY) {
+        cell.classList.add(v === P1 ? 'piece-p1' : 'piece-p2');
+        const p = document.createElement('div');
+        p.className = 'cell-piece';
+        cell.appendChild(p);
+      }
+    });
+
+    // Button states
+    document.getElementById('replay-first').disabled = _cursor === 0;
+    document.getElementById('replay-prev').disabled  = _cursor === 0;
+    document.getElementById('replay-next').disabled  = _cursor === total - 1;
+    document.getElementById('replay-last').disabled  = _cursor === total - 1;
+  }
+
+  function goFirst() { _cursor = 0; _render(); }
+  function goPrev()  { if (_cursor > 0) { _cursor--; _render(); } }
+  function goNext()  { const l = ReplayManager.getLog(); if (_cursor < l.length - 1) { _cursor++; _render(); } }
+  function goLast()  { _cursor = ReplayManager.getLog().length - 1; _render(); }
+
+  return { open, goFirst, goPrev, goNext, goLast };
+})();
+
+/* ============================================================
+   THEME MANAGER
+   ============================================================ */
+const ThemeManager = (() => {
+  const THEMES = {
+    default: { p1:'#00e5ff', p1dim:'#007a8a', p1glow:'rgba(0,229,255,0.25)',
+               p2:'#ff4d8d', p2dim:'#8a1f45', p2glow:'rgba(255,77,141,0.25)',
+               accent:'#7c3aed', accent2:'#a855f7' },
+    blue:    { p1:'#60a5fa', p1dim:'#1d4ed8', p1glow:'rgba(96,165,250,0.25)',
+               p2:'#93c5fd', p2dim:'#2563eb', p2glow:'rgba(147,197,253,0.2)',
+               accent:'#2563eb', accent2:'#60a5fa' },
+    red:     { p1:'#fca5a5', p1dim:'#b91c1c', p1glow:'rgba(252,165,165,0.25)',
+               p2:'#f87171', p2dim:'#dc2626', p2glow:'rgba(248,113,113,0.25)',
+               accent:'#dc2626', accent2:'#f87171' },
+    green:   { p1:'#4ade80', p1dim:'#15803d', p1glow:'rgba(74,222,128,0.25)',
+               p2:'#86efac', p2dim:'#166534', p2glow:'rgba(134,239,172,0.2)',
+               accent:'#16a34a', accent2:'#4ade80' },
+    purple:  { p1:'#c084fc', p1dim:'#6b21a8', p1glow:'rgba(192,132,252,0.25)',
+               p2:'#e879f9', p2dim:'#86198f', p2glow:'rgba(232,121,249,0.25)',
+               accent:'#7c3aed', accent2:'#c084fc' },
+  };
+
+  function apply(name) {
+    const t = THEMES[name] || THEMES.default;
+    const r = document.documentElement.style;
+    r.setProperty('--p1',     t.p1);
+    r.setProperty('--p1-dim', t.p1dim);
+    r.setProperty('--p1-glow',t.p1glow);
+    r.setProperty('--p2',     t.p2);
+    r.setProperty('--p2-dim', t.p2dim);
+    r.setProperty('--p2-glow',t.p2glow);
+    r.setProperty('--accent', t.accent);
+    r.setProperty('--accent2',t.accent2);
+    try { localStorage.setItem('skillcross_theme', name); } catch(e) {}
+    // Update active state in theme screen
+    document.querySelectorAll('.theme-card').forEach(card => {
+      card.classList.toggle('active-theme', card.dataset.theme === name);
+    });
+  }
+
+  function load() {
+    try {
+      const saved = localStorage.getItem('skillcross_theme') || 'default';
+      apply(saved);
+    } catch(e) { apply('default'); }
+  }
+
+  return { apply, load };
+})();
+
+
+/* ============================================================
    SKILL CROSS — Game Logic
    ============================================================ */
 
@@ -114,10 +270,14 @@ function createInitialState(mode, p1Skills, p2Skills) {
     pendingLockFor: null,
     guardedCells: {},
     lockedCells:  {},
+    round: 0,          // increments every 2 player-turns (1 full round)
     gameOver: false,
     winner:   null,
     winCells: [],
     score: { [P1]: 0, [P2]: 0 },
+    _lastSkillUsed: null,
+    _lastAction:    null,
+    deletedCellIndex: null, // for delete flash highlight persistence
   };
 }
 
@@ -456,10 +616,14 @@ const BattleMode = (() => {
     const primary = _mkBtn('btn-primary', primaryLabel, () => {
       overlay.classList.add('hidden'); onPrimary();
     });
+    const replayBtn = _mkBtn('btn-secondary-sm', '🎬 リプレイを見る', () => {
+      overlay.classList.add('hidden'); ReplayUI.open();
+    });
     const titleBtn = _mkBtn('btn-secondary-sm', 'タイトルへ', () => {
       overlay.classList.add('hidden'); onTitle();
     });
     actions.appendChild(primary);
+    if (ReplayManager.hasData()) actions.appendChild(replayBtn);
     actions.appendChild(titleBtn);
     overlay.classList.remove('hidden');
   }
@@ -528,15 +692,17 @@ function shareColumnRowDiag(i1, i2) {
 /* ============================================================
    GUARD & CELLLOCK UTILS
    ============================================================ */
-function isCellLocked(i)     { const lc=state.lockedCells[i];  return !!(lc && state.turn < lc.expiresAtTurn); }
-function isCellGuarded(i)    { const g=state.guardedCells[i];  return !!(g  && state.turn < g.expiresAtTurn);  }
-function guardOwner(i)       { const g=state.guardedCells[i];  return (g && state.turn < g.expiresAtTurn) ? g.player : null; }
-function guardTurnsLeft(i)   { const g=state.guardedCells[i];  return (g && state.turn < g.expiresAtTurn) ? g.expiresAtTurn - state.turn : 0; }
-function cellLockLeft(i)     { const lc=state.lockedCells[i]; return (lc && state.turn < lc.expiresAtTurn) ? lc.expiresAtTurn - state.turn : 0; }
+// Guard/CellLock durations are measured in ROUNDS (1 round = both players act once).
+// expiresAtRound is set when the effect is applied; comparisons use state.round.
+function isCellLocked(i)     { const lc=state.lockedCells[i];  return !!(lc && state.round < lc.expiresAtRound); }
+function isCellGuarded(i)    { const g=state.guardedCells[i];  return !!(g  && state.round < g.expiresAtRound);  }
+function guardOwner(i)       { const g=state.guardedCells[i];  return (g && state.round < g.expiresAtRound) ? g.player : null; }
+function guardTurnsLeft(i)   { const g=state.guardedCells[i];  return (g && state.round < g.expiresAtRound) ? g.expiresAtRound - state.round : 0; }
+function cellLockLeft(i)     { const lc=state.lockedCells[i]; return (lc && state.round < lc.expiresAtRound) ? lc.expiresAtRound - state.round : 0; }
 
 function expireEffects() {
-  for (const k of Object.keys(state.guardedCells)) if (state.turn >= state.guardedCells[k].expiresAtTurn) delete state.guardedCells[k];
-  for (const k of Object.keys(state.lockedCells))  if (state.turn >= state.lockedCells[k].expiresAtTurn)  delete state.lockedCells[k];
+  for (const k of Object.keys(state.guardedCells)) if (state.round >= state.guardedCells[k].expiresAtRound) delete state.guardedCells[k];
+  for (const k of Object.keys(state.lockedCells))  if (state.round >= state.lockedCells[k].expiresAtRound)  delete state.lockedCells[k];
 }
 
 function tryDeleteCell(i, attacker) {
@@ -561,7 +727,7 @@ function trySwitchCells(myIdx, oppIdx) {
    ============================================================ */
 function canUseSkill(p)      { return !state.locked[p]; }
 function hasSkill(p, id)     { return state.skills[p].available.includes(id) && !state.skills[p].used.includes(id); }
-function markSkillUsed(p,id) { state.skills[p].used.push(id); }
+function markSkillUsed(p,id) { state.skills[p].used.push(id); if(p===state.currentPlayer)state._lastSkillUsed=id; }
 function getDeletable(atk)   { const opp=atk===P1?P2:P1; return state.board.map(v=>v===opp); }
 function canDoublePlace(i1,i2,board) { return board[i2]===EMPTY && !shareColumnRowDiag(i1,i2); }
 function wouldWin(board,player,i)   { const b=[...board]; b[i]=player; return !!checkWin(b); }
@@ -719,10 +885,22 @@ function aiDecideSkill(){
 /* ============================================================
    CORE GAME FLOW
    ============================================================ */
-function placePiece(i){ if(isCellLocked(i))return false; state.board[i]=state.currentPlayer; state.pieceAge[i]=state.turn; SoundManager.play('place'); return true; }
+function placePiece(i){ if(isCellLocked(i))return false; state.board[i]=state.currentPlayer; state.pieceAge[i]=state.turn; if(!state._lastAction)state._lastAction=`マス${i+1}に駒を置く`; SoundManager.play('place'); return true; }
 
 function nextTurn(){
-  state.turn++; expireEffects();
+  // Record the turn that just ended before advancing
+  ReplayManager.record({
+    turn:       state.turn,
+    player:     state.currentPlayer,
+    board:      state.board,
+    skillUsed:  state._lastSkillUsed || null,
+    action:     state._lastAction    || '駒を置く',
+  });
+  state._lastSkillUsed = null;
+  state._lastAction    = null;
+  state.turn++;
+  state.round = Math.floor(state.turn / 2); // 1 round = 2 player-turns
+  expireEffects();
   state.currentPlayer = state.currentPlayer===P1?P2:P1;
   if(state.pendingLockFor===state.currentPlayer){state.locked[state.currentPlayer]=true;state.pendingLockFor=null;}
   else state.locked[state.currentPlayer]=false;
@@ -783,8 +961,19 @@ function aiExecSkill(sid){
       const opp=P1; let target=-1,bs=-Infinity;
       for(let i=0;i<state.board.length;i++){if(state.board[i]!==opp)continue;const b=[...state.board];b[i]=EMPTY;const s=-evalBoard(b,P1);if(s>bs){bs=s;target=i;}}
       if(diff==='easy'){const all=state.board.map((v,i)=>v===opp?i:-1).filter(i=>i>=0);if(all.length)target=all[Math.floor(Math.random()*all.length)];}
-      if(target>=0){const r=tryDeleteCell(target,P2);if(r==='guarded-broken')showToast('🛡 ガードが発動！削除を防いだ');}
-      renderAll();setTimeout(()=>{if(!checkGameEnd())aiPlaceNext(0);},200);
+      // Flash animation before deletion
+      if(target>=0){
+        const cells=document.getElementById('board').querySelectorAll('.cell');
+        if(cells[target]) cells[target].classList.add('delete-flash');
+      }
+      setTimeout(()=>{
+        if(target>=0){
+          const r=tryDeleteCell(target,P2);
+          if(r==='guarded-broken'){showToast('🛡 ガードが発動！削除を防いだ');state.deletedCellIndex=null;}
+          else{state.deletedCellIndex=target;}
+        }
+        renderAll();setTimeout(()=>{state.deletedCellIndex=null;if(!checkGameEnd())aiPlaceNext(0);},160);
+      },360);
       break;
     }
     case'switch':{
@@ -799,13 +988,13 @@ function aiExecSkill(sid){
       const mp=state.board.map((v,i)=>v===P2?i:-1).filter(i=>i>=0);
       let best=mp[0]??-1,bs=-Infinity;
       for(const pi of mp){if(isCellGuarded(pi))continue;let s=0;for(const ln of ALL_LINES)if(ln.includes(pi)&&ln.filter(i=>state.board[i]===P2).length>=2)s++;if(s>bs){bs=s;best=pi;}}
-      if(best>=0){state.guardedCells[best]={player:P2,expiresAtTurn:state.turn+GUARD_DURATION};showToast('🛡 AIがガードを使用！');}
+      if(best>=0){state.guardedCells[best]={player:P2,expiresAtRound:state.round+GUARD_DURATION};showToast('🛡 AIがガードを使用！');}
       renderAll();aiPlaceNext(350);break;
     }
     case'celllock':{
       let target=-1,bs=-Infinity;
       for(const ln of ALL_LINES){const v=ln.map(i=>state.board[i]);const oc=v.filter(x=>x===P1).length;if(!oc)continue;for(const ci of ln){if(state.board[ci]!==EMPTY||isCellLocked(ci))continue;if(oc>bs){bs=oc;target=ci;}}}
-      if(target>=0){state.lockedCells[target]={expiresAtTurn:state.turn+CELLLOCK_DURATION};showToast('⛓ AIがマスロックを使用！');}
+      if(target>=0){state.lockedCells[target]={expiresAtRound:state.round+CELLLOCK_DURATION};showToast('⛓ AIがマスロックを使用！');}
       renderAll();aiPlaceNext(350);break;
     }
     default: nextTurn();
@@ -872,6 +1061,7 @@ function onCellClick(i){
     case'lock-place':case'delete-place':case'guard-place':case'celllock-place':{
       if(state.board[i]!==EMPTY){showToast('空きマスを選んでください');return;}
       if(isCellLocked(i)){showToast('⛓ このマスは封鎖中です');return;}
+      state.deletedCellIndex=null; // clear delete highlight on next placement
       placePiece(i);state.phase='normal';state.skillState={};hideSkillStatus();renderAll();if(!checkGameEnd())nextTurn();break;
     }
     case'double-1':{
@@ -892,14 +1082,25 @@ function onCellClick(i){
       const del=getDeletable(player);
       if(!del[i]){showToast('相手の駒を選んでください');return;}
       markSkillUsed(player,'delete');
-      const res=tryDeleteCell(i,player);
-      if(res==='guarded-broken'){
-        showToast('🛡 ガードが発動！削除を防いだ');
-        state.phase='normal';state.activeSkill=null;hideSkillStatus();renderAll();if(!checkGameEnd())nextTurn();
-      }else{
-        state.phase='delete-place';state.activeSkill=null;
-        showSkillStatus('🗑 デリート ②: 続けて自分の駒を置いてください');renderAll();
+      state._lastAction='デリートで相手の駒を削除';
+      // 1. Immediately show flash on the target cell
+      const boardCells=document.getElementById('board').querySelectorAll('.cell');
+      if(boardCells[i]){
+        boardCells[i].classList.add('delete-flash');
       }
+      // 2. After animation completes, execute deletion and keep highlight via deletedCellIndex
+      setTimeout(()=>{
+        const res=tryDeleteCell(i,player);
+        if(res==='guarded-broken'){
+          showToast('🛡 ガードが発動！削除を防いだ');
+          state.deletedCellIndex=null;
+          state.phase='normal';state.activeSkill=null;hideSkillStatus();renderAll();if(!checkGameEnd())nextTurn();
+        }else{
+          state.deletedCellIndex=i; // remember deleted cell for renderBoard highlight
+          state.phase='delete-place';state.activeSkill=null;
+          showSkillStatus('🗑 デリート ②: 続けて自分の駒を置いてください');renderAll();
+        }
+      }, 360);
       break;
     }
     case'switch-1':{
@@ -918,14 +1119,14 @@ function onCellClick(i){
       if(state.board[i]!==player){showToast('自分の駒を選んでください');return;}
       if(isCellGuarded(i)){showToast('すでにガード中の駒です');return;}
       markSkillUsed(player,'guard');
-      state.guardedCells[i]={player,expiresAtTurn:state.turn+GUARD_DURATION};
+      state.guardedCells[i]={player,expiresAtRound:state.round+GUARD_DURATION};
       state.phase='guard-place';state.activeSkill=null;
       showSkillStatus('🛡 ガード発動！続けて駒を1つ置いてください');renderAll();break;
     }
     case'celllock':{
       if(state.board[i]!==EMPTY){showToast('空きマスを選んでください');return;}
       if(isCellLocked(i)){showToast('すでに封鎖中のマスです');return;}
-      state.lockedCells[i]={expiresAtTurn:state.turn+CELLLOCK_DURATION};
+      state.lockedCells[i]={expiresAtRound:state.round+CELLLOCK_DURATION};
       state.phase='celllock-place';state.activeSkill=null;
       showSkillStatus('⛓ マスロック発動！続けて駒を1つ置いてください');renderAll();break;
     }
@@ -1009,7 +1210,13 @@ function renderBoard(){
     switch(state.phase){
       case'delete':        if(del&&del[i]) cell.classList.add('deletable'); break;
       case'delete-place':case'lock-place':case'guard-place':case'celllock-place':
-        if(val===EMPTY) cell.classList.add('hint-cell'); break;
+        // deleted-cell takes priority — apply first, skip hint-cell for that square
+        if(state.phase==='delete-place'&&state.deletedCellIndex===i){
+          cell.classList.add('deleted-cell'); // deleted square: show red glow
+        } else if(val===EMPTY){
+          cell.classList.add('hint-cell');    // empty squares: show placement hints
+        }
+        break;
       case'guard':         if(val===player&&!isCellGuarded(i)) cell.classList.add('selectable-for-skill'); break;
       case'celllock':      if(val===EMPTY) cell.classList.add('selectable-for-skill'); break;
       case'switch-1':      if(val===player) cell.classList.add('selectable-for-skill'); break;
@@ -1082,7 +1289,7 @@ function playerName(p){ return state.mode==='ai'?(p===P1?'あなた':'AI'):(p===
    ============================================================ */
 const _sc={};
 function getScreen(id){ if(!_sc[id])_sc[id]=document.getElementById(id); return _sc[id]; }
-function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); getScreen(id).classList.add('active'); SoundManager.play('select'); }
+function showScreen(id){ document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); getScreen(id).classList.add('active'); SoundManager.play('select'); if(id==='screen-title') ReplayManager.reset(); }
 
 /* ============================================================
    SKILL GRID BUILDER (shared)
@@ -1112,6 +1319,7 @@ function buildSkillGrid(containerId, selectedIds, maxSelect, onChanged){
    ============================================================ */
 function startGame(mode, p1Skills, p2Skills){
   state=createInitialState(mode,p1Skills,p2Skills);
+  ReplayManager.onGameStart();
   buildBoard(); renderAll(); hideSkillStatus(); showAIThinking(false);
   document.getElementById('overlay-result').classList.add('hidden');
   document.getElementById('overlay-series-win').classList.add('hidden');
@@ -1211,5 +1419,630 @@ function startGame(mode, p1Skills, p2Skills){
     showScreen('screen-title');
   });
 
+  // Tutorial (interactive)
+  document.getElementById('btn-tutorial').addEventListener('click', () => TutorialEngine.start());
+  document.getElementById('tut-skip-btn').addEventListener('click', () => TutorialEngine.skip());
+  document.getElementById('tut-next-btn').addEventListener('click', () => TutorialEngine.nextStep());
+  document.getElementById('tut-complete-ok').addEventListener('click', () => {
+    document.getElementById('tut-complete-overlay').classList.add('hidden');
+    showScreen('screen-title');
+  });
+
+  // Replay controls
+  document.getElementById('back-from-replay').addEventListener('click',()=>{
+    document.getElementById('overlay-result').classList.add('hidden');
+    showScreen('screen-game');
+  });
+  document.getElementById('replay-first').addEventListener('click',()=>ReplayUI.goFirst());
+  document.getElementById('replay-prev').addEventListener('click',()=>ReplayUI.goPrev());
+  document.getElementById('replay-next').addEventListener('click',()=>ReplayUI.goNext());
+  document.getElementById('replay-last').addEventListener('click',()=>ReplayUI.goLast());
+
+  // Theme
+  document.getElementById('btn-theme').addEventListener('click',()=>showScreen('screen-theme'));
+  document.getElementById('back-from-theme').addEventListener('click',()=>showScreen('screen-title'));
+  document.querySelectorAll('.theme-card').forEach(card=>{
+    card.addEventListener('click',()=>ThemeManager.apply(card.dataset.theme));
+  });
+
+  // Load saved theme on startup
+  ThemeManager.load();
+
   showScreen('screen-title');
+})();
+
+/* ============================================================
+   TUTORIAL ENGINE  — Interactive battle-based tutorial
+   Completely isolated from normal game state.
+   ============================================================ */
+const TutorialEngine = (() => {
+
+  // ── Tutorial board constants (same as main game) ──────────
+  const TS = 5, TW = 4;  // board size, win length
+
+  // ── Tutorial state ─────────────────────────────────────────
+  let _ts = null;   // tutorial game state
+
+  // ── Step definitions ──────────────────────────────────────
+  // Each step: { title, desc, skill(optional), condition(fn), onEnter(fn), allowAI }
+  const STEPS = [
+    {
+      id: 'place',
+      title: '① 駒を置いてみよう',
+      desc: '光っているマスをタップして駒を置いてください。',
+      condition: () => _ts.playerPiecesPlaced >= 1,
+      hintCells: () => _emptyTutCells().slice(0, 3), // highlight first 3 empty cells
+      allowAI: false,
+    },
+    {
+      id: 'goal',
+      title: '② 4つ並べると勝利です',
+      desc: '縦・横・斜めのいずれかで4つ並べたら勝ちです。自由に駒を置いてみましょう。',
+      condition: () => _ts.playerPiecesPlaced >= 4,
+      hintCells: () => _emptyTutCells().slice(0, 5),
+      allowAI: true,
+    },
+    {
+      id: 'skill-intro',
+      title: '③ スキルについて',
+      desc: 'このゲームではスキルを使うことができます。左側がプレイヤーのスキルです。「次へ」を押して続けてください。',
+      condition: () => false, // next-button driven
+      hintCells: () => [],
+      allowAI: false,
+      nextButton: true,
+    },
+    {
+      id: 'double',
+      title: '④ ダブルの体験',
+      desc: '「ダブル」ボタンを押して、2つのマスに駒を置いてみましょう。同じ列には置けません。',
+      skillRequired: 'double',
+      condition: () => _ts.skillsUsed.has('double'),
+      hintCells: () => [],
+      allowAI: false,
+    },
+    {
+      id: 'delete',
+      title: '⑤ デリートの体験',
+      desc: '「デリート」ボタンを押して、相手の駒を1つ削除してから自分の駒を置きましょう。',
+      skillRequired: 'delete',
+      condition: () => _ts.skillsUsed.has('delete'),
+      hintCells: () => [],
+      allowAI: true, // AI places a piece first so there's a target
+      preAction: () => { _ensureAIPieces(3); },
+    },
+    {
+      id: 'switch',
+      title: '⑥ スイッチの体験',
+      desc: '「スイッチ」ボタンを押して、自分の駒と相手の駒を入れ替えましょう。',
+      skillRequired: 'switch',
+      condition: () => _ts.skillsUsed.has('switch'),
+      hintCells: () => [],
+      allowAI: true,
+      preAction: () => { _ensureAIPieces(2); _ensurePlayerPieces(2); },
+    },
+    {
+      id: 'lock',
+      title: '⑦ ロックの体験',
+      desc: '「ロック」ボタンを押してください。相手の次のターンのスキルを封じます。その後、駒を1つ置きましょう。',
+      skillRequired: 'lock',
+      condition: () => _ts.skillsUsed.has('lock'),
+      hintCells: () => [],
+      allowAI: false,
+    },
+    {
+      id: 'guard',
+      title: '⑧ ガードの体験',
+      desc: '「ガード」ボタンを押して、自分の駒を1つ選んで保護しましょう。その後、駒を1つ置きます。',
+      skillRequired: 'guard',
+      condition: () => _ts.skillsUsed.has('guard'),
+      hintCells: () => [],
+      allowAI: false,
+      preAction: () => { _ensurePlayerPieces(2); },
+    },
+    {
+      id: 'celllock',
+      title: '⑨ マスロックの体験',
+      desc: '「マスロック」ボタンを押して、封鎖するマスを選んでください。その後、駒を1つ置きます。',
+      skillRequired: 'celllock',
+      condition: () => _ts.skillsUsed.has('celllock'),
+      hintCells: () => [],
+      allowAI: false,
+    },
+    {
+      id: 'free',
+      title: '⑩ 実戦形式',
+      desc: '簡易AIと自由に対戦してみましょう！スキルも使えます。数ターン遊んだら「次へ」でクリアです。',
+      condition: () => false,
+      hintCells: () => [],
+      allowAI: true,
+      nextButton: true,
+    },
+  ];
+
+  const TOTAL_STEPS = STEPS.length;
+  let _stepIndex = 0;
+  let _phase = 'normal'; // 'normal' | skill phases matching main game
+  let _activeSkill = null;
+  let _skillState = {};
+
+  // ── Tutorial board helpers ────────────────────────────────
+  function _emptyTutCells() {
+    return _ts.board.map((v, i) => v === EMPTY ? i : -1).filter(i => i >= 0)
+      .filter(i => !_ts.lockedCells[i]);
+  }
+  function _aiCells() {
+    return _ts.board.map((v, i) => v === P2 ? i : -1).filter(i => i >= 0);
+  }
+  function _playerCells() {
+    return _ts.board.map((v, i) => v === P1 ? i : -1).filter(i => i >= 0);
+  }
+  function _ensureAIPieces(n) {
+    const needed = n - _aiCells().length;
+    const empty  = _emptyTutCells();
+    for (let k = 0; k < needed && k < empty.length; k++) {
+      _ts.board[empty[k]] = P2;
+    }
+  }
+  function _ensurePlayerPieces(n) {
+    const needed = n - _playerCells().length;
+    const empty  = _emptyTutCells();
+    for (let k = 0; k < needed && k < empty.length; k++) {
+      _ts.board[empty[k]] = P1;
+      _ts.playerPiecesPlaced++;
+    }
+  }
+
+  // ── Tutorial AI move (very easy) ─────────────────────────
+  function _aiMove() {
+    const empty = _emptyTutCells();
+    if (!empty.length) return;
+    // Just block if player has 3 in a row, else random
+    for (const line of _tutLines()) {
+      const vals = line.map(i => _ts.board[i]);
+      if (vals.filter(v => v === P1).length === 3 && vals.includes(EMPTY)) {
+        const block = line.find(i => _ts.board[i] === EMPTY);
+        if (block !== undefined && !_ts.lockedCells[block]) {
+          _ts.board[block] = P2; return;
+        }
+      }
+    }
+    const pick = empty[Math.floor(Math.random() * empty.length)];
+    _ts.board[pick] = P2;
+  }
+
+  function _tutLines() {
+    if (_tutLines._cache) return _tutLines._cache;
+    const lines = [];
+    for (let r = 0; r < TS; r++)
+      for (let c = 0; c <= TS - TW; c++)
+        lines.push(Array.from({length: TW}, (_, k) => r * TS + c + k));
+    for (let c = 0; c < TS; c++)
+      for (let r = 0; r <= TS - TW; r++)
+        lines.push(Array.from({length: TW}, (_, k) => (r + k) * TS + c));
+    for (let r = 0; r <= TS - TW; r++)
+      for (let c = 0; c <= TS - TW; c++)
+        lines.push(Array.from({length: TW}, (_, k) => (r + k) * TS + (c + k)));
+    for (let r = 0; r <= TS - TW; r++)
+      for (let c = TW - 1; c < TS; c++)
+        lines.push(Array.from({length: TW}, (_, k) => (r + k) * TS + (c - k)));
+    _tutLines._cache = lines;
+    return lines;
+  }
+
+  function _tutCheckWin() {
+    for (const line of _tutLines()) {
+      const f = _ts.board[line[0]];
+      if (f !== EMPTY && line.every(i => _ts.board[i] === f)) return f;
+    }
+    return null;
+  }
+
+  // ── Init tutorial state ───────────────────────────────────
+  function _initState() {
+    _ts = {
+      board:              Array(TS * TS).fill(EMPTY),
+      lockedCells:        {},
+      guardedCells:       {},
+      playerPiecesPlaced: 0,
+      skillsUsed:         new Set(),
+      // Skills available for player in tutorial (all 6)
+      playerSkills:  { available: [...SKILL_ORDER], used: [] },
+      playerLocked:  false,
+    };
+    _phase       = 'normal';
+    _activeSkill = null;
+    _skillState  = {};
+  }
+
+  // ── Board builder for tutorial ────────────────────────────
+  function _buildTutBoard() {
+    const board = document.getElementById('tut-board');
+    board.innerHTML = '';
+    for (let i = 0; i < TS * TS; i++) {
+      const c = document.createElement('div');
+      c.className = 'cell';
+      c.addEventListener('click', () => _onTutCellClick(i));
+      board.appendChild(c);
+    }
+  }
+
+  // ── Skill bar renderer ────────────────────────────────────
+  function _renderSkillBar() {
+    const bar = document.getElementById('tut-skill-bar');
+    bar.innerHTML = '';
+    const lbl = document.createElement('div');
+    lbl.className = 'tut-skill-bar-label';
+    lbl.textContent = 'あなた';
+    bar.appendChild(lbl);
+
+    const step = STEPS[_stepIndex];
+    SKILL_ORDER.forEach(sid => {
+      const d    = SKILL_DEFS[sid];
+      const used = _ts.playerSkills.used.includes(sid);
+      const isActive  = _activeSkill === sid;
+      const isHighlight = step && step.skillRequired === sid && !used;
+      const btn = document.createElement('button');
+      btn.className = 'tut-skill-btn' + (used ? ' used' : '') + (isActive ? ' active-skill' : '') + (isHighlight ? ' tut-highlight' : '');
+      btn.innerHTML = `<span>${d.icon}</span><span class="skill-label">${d.name}</span>`;
+      btn.title = d.name;
+      if (!used) btn.addEventListener('click', () => _onTutSkillClick(sid));
+      else btn.disabled = true;
+      bar.appendChild(btn);
+    });
+  }
+
+  // ── AI skill display ──────────────────────────────────────
+  function _renderAIPanel() {
+    const panel = document.getElementById('tut-ai-skills');
+    panel.innerHTML = '';
+    ['double', 'delete', 'switch'].forEach(sid => {
+      const d   = SKILL_DEFS[sid];
+      const div = document.createElement('div');
+      div.className = 'tut-ai-skill-icon';
+      div.innerHTML = `<span>${d.icon}</span><span class="skill-label">${d.name}</span>`;
+      panel.appendChild(div);
+    });
+  }
+
+  // ── Board renderer ────────────────────────────────────────
+  function _renderTutBoard() {
+    const step     = STEPS[_stepIndex];
+    const cells    = document.getElementById('tut-board').querySelectorAll('.cell');
+    const hints    = (step && step.hintCells) ? step.hintCells() : [];
+    const aiCells  = _aiCells();
+
+    cells.forEach((cell, i) => {
+      cell.className = 'cell';
+      cell.innerHTML = '';
+
+      // Locked cell
+      if (_ts.lockedCells[i] && _ts.lockedCells[i] > 0) {
+        cell.classList.add('cell-locked');
+        const ic = document.createElement('div'); ic.className = 'cell-lock-icon';
+        ic.textContent = `⛓${_ts.lockedCells[i]}`; cell.appendChild(ic); return;
+      }
+
+      const val = _ts.board[i];
+      if (val !== EMPTY) {
+        cell.classList.add(val === P1 ? 'piece-p1' : 'piece-p2');
+        const p = document.createElement('div'); p.className = 'cell-piece'; cell.appendChild(p);
+        // Guard indicator
+        if (_ts.guardedCells[i]) {
+          cell.classList.add('guarded-p1');
+          const sh = document.createElement('div'); sh.className = 'guard-shield';
+          sh.textContent = `🛡${_ts.guardedCells[i]}`; cell.appendChild(sh);
+        }
+      }
+
+      // Phase-based highlights
+      switch (_phase) {
+        case 'normal':
+          if (val === EMPTY && hints.includes(i)) cell.classList.add('selectable-for-skill');
+          break;
+        case 'delete':
+          if (val === P2) cell.classList.add('deletable');
+          break;
+        case 'delete-place':
+          if (val === EMPTY) cell.classList.add('hint-cell');
+          if (_skillState.deletedIdx === i) cell.classList.add('deleted-cell');
+          break;
+        case 'lock-place': case 'guard-place': case 'celllock-place':
+          if (val === EMPTY) cell.classList.add('hint-cell');
+          break;
+        case 'guard':
+          if (val === P1 && !_ts.guardedCells[i]) cell.classList.add('selectable-for-skill');
+          break;
+        case 'celllock':
+          if (val === EMPTY) cell.classList.add('selectable-for-skill');
+          break;
+        case 'switch-1':
+          if (val === P1) cell.classList.add('selectable-for-skill');
+          break;
+        case 'switch-2':
+          if (i === _skillState.myPiece) cell.classList.add('active-skill');
+          if (val === P2) cell.classList.add('selectable-for-skill');
+          break;
+        case 'double-1':
+          if (val === EMPTY) cell.classList.add('hint-cell');
+          break;
+        case 'double-2':
+          if (i === _skillState.firstIndex) cell.classList.add('active-skill');
+          if (val === EMPTY) {
+            const {r:r1,c:c1}={r:Math.floor(_skillState.firstIndex/TS),c:_skillState.firstIndex%TS};
+            const {r:r2,c:c2}={r:Math.floor(i/TS),c:i%TS};
+            const same = r1===r2||c1===c2||Math.abs(r1-r2)===Math.abs(c1-c2);
+            if (!same) cell.classList.add('hint-cell');
+          }
+          break;
+      }
+    });
+  }
+
+  // ── Status bar ────────────────────────────────────────────
+  function _setStatus(txt) {
+    const el = document.getElementById('tut-status-bar');
+    if (txt) { el.textContent = txt; el.classList.add('visible'); }
+    else { el.classList.remove('visible'); }
+  }
+
+  // ── Step header ───────────────────────────────────────────
+  function _updateHeader() {
+    document.getElementById('tut-step-label').textContent = `STEP ${_stepIndex + 1} / ${TOTAL_STEPS}`;
+    const step = STEPS[_stepIndex];
+    document.getElementById('tut-title').textContent = step.title;
+    document.getElementById('tut-desc').textContent  = step.desc;
+    const nextBtn = document.getElementById('tut-next-btn');
+    nextBtn.style.display = step.nextButton ? '' : 'none';
+  }
+
+  // ── Full render ───────────────────────────────────────────
+  function _render() {
+    _updateHeader();
+    _renderSkillBar();
+    _renderTutBoard();
+    _renderAIPanel();
+  }
+
+  // ── Advance to next step ──────────────────────────────────
+  function _nextStep() {
+    _stepIndex++;
+    if (_stepIndex >= TOTAL_STEPS) { _complete(); return; }
+    _phase = 'normal'; _activeSkill = null; _skillState = {};
+    _setStatus('');
+    const step = STEPS[_stepIndex];
+    if (step.preAction) step.preAction();
+    _render();
+  }
+
+  // ── Check if step condition met → auto-advance ────────────
+  function _checkCondition() {
+    const step = STEPS[_stepIndex];
+    if (step.condition && step.condition()) {
+      setTimeout(() => _nextStep(), 600);
+    }
+  }
+
+  // ── Cell click handler ────────────────────────────────────
+  function _onTutCellClick(i) {
+    const val = _ts.board[i];
+
+    switch (_phase) {
+      case 'normal': {
+        if (val !== EMPTY) return;
+        if (_ts.lockedCells[i]) { _showTutToast('⛓ このマスは封鎖中です'); return; }
+        _ts.board[i] = P1;
+        _ts.playerPiecesPlaced++;
+        _phase = 'normal';
+        if (_tutCheckWin() === P1) {
+          _render(); _setStatus('🎉 4つ並べた！');
+          setTimeout(() => { _ts.board = Array(TS * TS).fill(EMPTY); _ts.lockedCells = {}; _ts.guardedCells = {}; _setStatus(''); _checkCondition(); _render(); }, 1000);
+          return;
+        }
+        _render();
+        _checkCondition();
+        // AI turn
+        const step = STEPS[_stepIndex];
+        if (step.allowAI) setTimeout(_aiTurn, 500);
+        break;
+      }
+      case 'double-1': {
+        if (val !== EMPTY) return;
+        _ts.board[i] = P1; _ts.playerPiecesPlaced++;
+        _skillState.firstIndex = i; _phase = 'double-2';
+        _setStatus('⚡ ダブル: 2つ目のマスを選んでください（同じ列は不可）');
+        _render(); break;
+      }
+      case 'double-2': {
+        if (val !== EMPTY) return;
+        const {r:r1,c:c1}={r:Math.floor(_skillState.firstIndex/TS),c:_skillState.firstIndex%TS};
+        const {r:r2,c:c2}={r:Math.floor(i/TS),c:i%TS};
+        const same = r1===r2||c1===c2||Math.abs(r1-r2)===Math.abs(c1-c2);
+        if (same) { _showTutToast('同じ列には置けません'); return; }
+        _ts.board[i] = P1; _ts.playerPiecesPlaced++;
+        _ts.playerSkills.used.push('double');
+        _ts.skillsUsed.add('double');
+        _phase = 'normal'; _activeSkill = null; _skillState = {};
+        _setStatus('');
+        _render(); _checkCondition();
+        const step = STEPS[_stepIndex];
+        if (step.allowAI) setTimeout(_aiTurn, 500);
+        break;
+      }
+      case 'delete': {
+        if (val !== P2) { _showTutToast('相手の駒を選んでください'); return; }
+        // Flash
+        const cells = document.getElementById('tut-board').querySelectorAll('.cell');
+        if (cells[i]) cells[i].classList.add('delete-flash');
+        setTimeout(() => {
+          _ts.board[i] = EMPTY;
+          _skillState.deletedIdx = i;
+          _ts.playerSkills.used.push('delete');
+          _ts.skillsUsed.add('delete');
+          _phase = 'delete-place'; _activeSkill = null;
+          _setStatus('🗑 続けて自分の駒を置いてください');
+          _render();
+        }, 360);
+        break;
+      }
+      case 'delete-place': {
+        if (val !== EMPTY) return;
+        _ts.board[i] = P1; _ts.playerPiecesPlaced++;
+        _skillState.deletedIdx = null;
+        _phase = 'normal'; _setStatus('');
+        _render(); _checkCondition();
+        const step = STEPS[_stepIndex];
+        if (step.allowAI) setTimeout(_aiTurn, 500);
+        break;
+      }
+      case 'switch-1': {
+        if (val !== P1) { _showTutToast('自分の駒を選んでください'); return; }
+        _skillState.myPiece = i; _phase = 'switch-2';
+        _setStatus('🔄 スイッチ: 入れ替える相手の駒を選んでください');
+        _render(); break;
+      }
+      case 'switch-2': {
+        if (val !== P2) { _showTutToast('相手の駒を選んでください'); return; }
+        const tmp = _ts.board[_skillState.myPiece];
+        _ts.board[_skillState.myPiece] = _ts.board[i];
+        _ts.board[i] = tmp;
+        _ts.playerSkills.used.push('switch');
+        _ts.skillsUsed.add('switch');
+        _phase = 'normal'; _activeSkill = null; _skillState = {};
+        _setStatus('');
+        _render(); _checkCondition();
+        const step = STEPS[_stepIndex];
+        if (step.allowAI) setTimeout(_aiTurn, 500);
+        break;
+      }
+      case 'lock-place': {
+        if (val !== EMPTY) return;
+        _ts.board[i] = P1; _ts.playerPiecesPlaced++;
+        _phase = 'normal'; _activeSkill = null; _skillState = {};
+        _setStatus('');
+        _render(); _checkCondition();
+        break;
+      }
+      case 'guard': {
+        if (val !== P1) { _showTutToast('自分の駒を選んでください'); return; }
+        if (_ts.guardedCells[i]) { _showTutToast('すでにガード中です'); return; }
+        _ts.guardedCells[i] = 2;
+        _ts.playerSkills.used.push('guard');
+        _ts.skillsUsed.add('guard');
+        _phase = 'guard-place'; _activeSkill = null;
+        _setStatus('🛡 ガード発動！続けて駒を1つ置いてください');
+        _render(); break;
+      }
+      case 'guard-place': {
+        if (val !== EMPTY) return;
+        _ts.board[i] = P1; _ts.playerPiecesPlaced++;
+        _phase = 'normal'; _setStatus('');
+        _render(); _checkCondition(); break;
+      }
+      case 'celllock': {
+        if (val !== EMPTY) { _showTutToast('空きマスを選んでください'); return; }
+        if (_ts.lockedCells[i]) { _showTutToast('すでに封鎖済みです'); return; }
+        _ts.lockedCells[i] = 2;
+        _ts.playerSkills.used.push('celllock');
+        _ts.skillsUsed.add('celllock');
+        _phase = 'celllock-place'; _activeSkill = null;
+        _setStatus('⛓ マスロック発動！続けて駒を1つ置いてください');
+        _render(); break;
+      }
+      case 'celllock-place': {
+        if (val !== EMPTY) return;
+        _ts.board[i] = P1; _ts.playerPiecesPlaced++;
+        _phase = 'normal'; _setStatus('');
+        _render(); _checkCondition(); break;
+      }
+    }
+  }
+
+  // ── Skill button click ────────────────────────────────────
+  function _onTutSkillClick(sid) {
+    const step = STEPS[_stepIndex];
+    // In free step, allow any skill; otherwise only the required skill
+    if (step.id !== 'free' && step.skillRequired && step.skillRequired !== sid) {
+      _showTutToast(`まず「${SKILL_DEFS[step.skillRequired].name}」を使ってみましょう`); return;
+    }
+    if (_ts.playerSkills.used.includes(sid)) { _showTutToast('このスキルは使用済みです'); return; }
+
+    if (_activeSkill === sid) { // cancel
+      _phase = 'normal'; _activeSkill = null; _skillState = {};
+      _setStatus(''); _render(); return;
+    }
+    _activeSkill = sid;
+
+    switch (sid) {
+      case 'double':
+        _phase = 'double-1';
+        _setStatus('⚡ ダブル: 1つ目のマスを選んでください');
+        break;
+      case 'delete':
+        if (_aiCells().length === 0) { _showTutToast('相手の駒がありません。先に少し進めましょう'); _activeSkill=null; return; }
+        _phase = 'delete';
+        _setStatus('🗑 デリート: 削除する相手の駒を選んでください');
+        break;
+      case 'switch':
+        if (_aiCells().length === 0 || _playerCells().length === 0) {
+          _showTutToast('自分と相手、両方の駒が必要です'); _activeSkill=null; return;
+        }
+        _phase = 'switch-1';
+        _setStatus('🔄 スイッチ: 入れ替える自分の駒を選んでください');
+        break;
+      case 'lock':
+        _ts.playerSkills.used.push('lock');
+        _ts.skillsUsed.add('lock');
+        _activeSkill = null;
+        _phase = 'lock-place';
+        _setStatus('🔒 ロック発動！続けて駒を1つ置いてください');
+        break;
+      case 'guard':
+        if (_playerCells().length === 0) { _showTutToast('まず駒を置いてください'); _activeSkill=null; return; }
+        _phase = 'guard';
+        _setStatus('🛡 ガード: 保護する自分の駒を選んでください');
+        break;
+      case 'celllock':
+        _ts.playerSkills.used.push('celllock'); // mark early
+        _activeSkill = null;
+        _phase = 'celllock';
+        _setStatus('⛓ マスロック: 封鎖するマスを選んでください');
+        break;
+    }
+    _render();
+  }
+
+  // ── Tutorial AI turn ──────────────────────────────────────
+  function _aiTurn() {
+    _aiMove();
+    _render();
+  }
+
+  // ── Toast (uses main game toast) ─────────────────────────
+  function _showTutToast(msg) { showToast(msg); }
+
+  // ── Complete ─────────────────────────────────────────────
+  function _complete() {
+    document.getElementById('tut-complete-overlay').classList.remove('hidden');
+  }
+
+  // ── Public API ────────────────────────────────────────────
+  function start() {
+    _initState();
+    _stepIndex = 0;
+    _buildTutBoard();
+    _renderAIPanel();
+    _setStatus('');
+    document.getElementById('tut-complete-overlay').classList.add('hidden');
+    document.getElementById('tut-next-btn').style.display = 'none';
+    const step = STEPS[0];
+    if (step.preAction) step.preAction();
+    _render();
+    showScreen('screen-tutorial');
+  }
+
+  function skip() { _complete(); }
+
+  function nextStep() { _nextStep(); }
+
+  return { start, skip, nextStep };
 })();

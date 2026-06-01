@@ -22,8 +22,10 @@
     <div class="title-menu">
       <button class="btn-menu" id="btn-local">ローカル対戦</button>
       <button class="btn-menu btn-disabled">オンライン対戦 <span class="badge-soon">近日公開</span></button>
+      <button class="btn-menu btn-secondary" id="btn-tutorial">チュートリアル</button>
       <button class="btn-menu btn-secondary" id="btn-skill-edit">スキル編集</button>
       <button class="btn-menu btn-secondary" id="btn-howto">遊び方</button>
+      <button class="btn-menu btn-secondary" id="btn-theme">カラー変更</button>
     </div>
   </div>
 </div>
@@ -56,26 +58,17 @@
   </div>
   <div class="battle-mode-cards">
     <div class="battle-mode-card" data-battle-mode="simple">
-      <div class="bm-header">
-        <span class="bm-icon">⚡</span>
-        <span class="bm-label">SIMPLE</span>
-      </div>
+      <div class="bm-header"><span class="bm-icon">⚡</span><span class="bm-label">SIMPLE</span></div>
       <div class="bm-title">シンプル</div>
       <div class="bm-desc">各自スキル3つを持ち込み、<br>1試合で勝負する</div>
     </div>
     <div class="battle-mode-card" data-battle-mode="draft">
-      <div class="bm-header">
-        <span class="bm-icon">🎴</span>
-        <span class="bm-label">DRAFT</span>
-      </div>
+      <div class="bm-header"><span class="bm-icon">🎴</span><span class="bm-label">DRAFT</span></div>
       <div class="bm-title">ドラフト</div>
       <div class="bm-desc">交互にスキルを奪い合い、<br>戦略的に3つを選ぶ</div>
     </div>
     <div class="battle-mode-card" data-battle-mode="stock">
-      <div class="bm-header">
-        <span class="bm-icon">🏆</span>
-        <span class="bm-label">STOCK</span>
-      </div>
+      <div class="bm-header"><span class="bm-icon">🏆</span><span class="bm-label">STOCK</span></div>
       <div class="bm-title">ストック</div>
       <div class="bm-desc">先に3勝した方の勝利。<br>負けたらスキルを再選択</div>
     </div>
@@ -113,7 +106,7 @@
   </div>
 </div>
 
-<!-- SKILL SELECT (通常・ストック再選択) -->
+<!-- SKILL SELECT -->
 <div id="screen-skill-select" class="screen">
   <div class="screen-header">
     <button class="btn-back" id="back-from-skill-select">← 戻る</button>
@@ -147,7 +140,7 @@
   <div id="draft-skill-grid" class="skill-select-grid draft-skill-grid"></div>
 </div>
 
-<!-- SKILL EDIT (FROM TITLE) -->
+<!-- SKILL EDIT -->
 <div id="screen-skill-edit" class="screen">
   <div class="screen-header">
     <button class="btn-back" id="back-from-skill-edit">← 戻る</button>
@@ -205,6 +198,96 @@
   </div>
 </div>
 
+<!-- ★ TUTORIAL (interactive battle-based) -->
+<div id="screen-tutorial" class="screen">
+  <div class="tut-header">
+    <div class="tut-step-label" id="tut-step-label">STEP 1 / 10</div>
+    <button class="tut-skip-btn" id="tut-skip-btn">スキップ</button>
+  </div>
+  <div class="tut-message-box" id="tut-message-box">
+    <div class="tut-title" id="tut-title">駒を置いてみよう</div>
+    <div class="tut-desc"  id="tut-desc">光っているマスをタップしてください</div>
+  </div>
+  <div class="tut-game-area">
+    <div class="tut-skill-bar" id="tut-skill-bar">
+      <!-- tutorial skill buttons rendered here -->
+    </div>
+    <div class="board-container tut-board-wrap">
+      <div id="tut-board" class="board"></div>
+    </div>
+    <div class="tut-ai-panel" id="tut-ai-panel">
+      <div class="tut-ai-label">チュートリアルAI</div>
+      <div class="tut-ai-skills" id="tut-ai-skills"></div>
+    </div>
+  </div>
+  <div class="tut-status-bar" id="tut-status-bar"></div>
+  <div class="tut-footer">
+    <button class="btn-primary tut-next-btn" id="tut-next-btn" style="display:none">次へ →</button>
+  </div>
+  <div class="tut-complete-overlay hidden" id="tut-complete-overlay">
+    <div class="tut-complete-box">
+      <div class="tut-complete-icon">🎉</div>
+      <div class="tut-complete-title">チュートリアル完了！</div>
+      <div class="tut-complete-sub">基本操作をマスターしました</div>
+      <button class="btn-primary" id="tut-complete-ok">タイトルへ戻る</button>
+    </div>
+  </div>
+</div>
+
+<!-- ★ REPLAY SCREEN -->
+<div id="screen-replay" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" id="back-from-replay">← 戻る</button>
+    <h2>リプレイ</h2>
+    <div class="replay-progress" id="replay-progress">0 / 0</div>
+  </div>
+  <div class="replay-info-bar" id="replay-info-bar">
+    <div class="replay-turn-badge" id="replay-turn-badge">TURN 1</div>
+    <div class="replay-player-badge" id="replay-player-badge">P1</div>
+    <div class="replay-action" id="replay-action">—</div>
+  </div>
+  <div class="board-container replay-board-wrap">
+    <div id="replay-board" class="board"></div>
+  </div>
+  <div class="replay-controls">
+    <button class="replay-btn" id="replay-first">|◀</button>
+    <button class="replay-btn" id="replay-prev">◀</button>
+    <button class="replay-btn" id="replay-next">▶</button>
+    <button class="replay-btn" id="replay-last">▶|</button>
+  </div>
+</div>
+
+<!-- ★ THEME SELECT -->
+<div id="screen-theme" class="screen">
+  <div class="screen-header">
+    <button class="btn-back" id="back-from-theme">← 戻る</button>
+    <h2>カラー変更</h2>
+  </div>
+  <p class="skill-select-hint">UIのテーマカラーを選択してください</p>
+  <div class="theme-cards" id="theme-cards">
+    <div class="theme-card" data-theme="default">
+      <div class="theme-swatch" style="background:linear-gradient(135deg,#00e5ff,#ff4d8d)"></div>
+      <div class="theme-name">デフォルト</div>
+    </div>
+    <div class="theme-card" data-theme="blue">
+      <div class="theme-swatch" style="background:linear-gradient(135deg,#60a5fa,#2563eb)"></div>
+      <div class="theme-name">ブルー</div>
+    </div>
+    <div class="theme-card" data-theme="red">
+      <div class="theme-swatch" style="background:linear-gradient(135deg,#f87171,#dc2626)"></div>
+      <div class="theme-name">レッド</div>
+    </div>
+    <div class="theme-card" data-theme="green">
+      <div class="theme-swatch" style="background:linear-gradient(135deg,#4ade80,#16a34a)"></div>
+      <div class="theme-name">グリーン</div>
+    </div>
+    <div class="theme-card" data-theme="purple">
+      <div class="theme-swatch" style="background:linear-gradient(135deg,#c084fc,#7c3aed)"></div>
+      <div class="theme-name">パープル</div>
+    </div>
+  </div>
+</div>
+
 <!-- GAME -->
 <div id="screen-game" class="screen">
   <div class="game-header">
@@ -217,32 +300,28 @@
       <div class="game-score" id="game-score"></div>
     </div>
   </div>
-
   <div class="game-area">
     <div class="player-panel" id="panel-p1">
       <div class="panel-name" id="p1-name">P1</div>
       <div class="panel-skills" id="p1-skills"></div>
       <div class="lock-badge" id="lock-p1">🔒 ロック中</div>
     </div>
-
     <div class="board-container">
       <div id="board" class="board"></div>
     </div>
-
     <div class="player-panel" id="panel-p2">
       <div class="panel-name" id="p2-name">P2</div>
       <div class="panel-skills" id="p2-skills"></div>
       <div class="lock-badge" id="lock-p2">🔒 ロック中</div>
     </div>
   </div>
-
   <div id="skill-status-bar" class="skill-status-bar hidden">
     <span id="skill-status-text"></span>
     <button id="btn-cancel-skill" class="btn-cancel-skill">キャンセル</button>
   </div>
 </div>
 
-<!-- RESULT OVERLAY (通常 / シンプル / ドラフト) -->
+<!-- RESULT OVERLAY -->
 <div id="overlay-result" class="overlay hidden">
   <div class="result-box">
     <div class="result-icon" id="result-icon"></div>
@@ -278,6 +357,9 @@
     <div class="ai-thinking-label">AI THINKING...</div>
   </div>
 </div>
+
+<!-- DELETE FLASH OVERLAY (for delete animation) -->
+<div id="overlay-delete-flash" class="overlay-delete-flash hidden"></div>
 
 <!-- TOAST -->
 <div id="toast" class="toast hidden"></div>
